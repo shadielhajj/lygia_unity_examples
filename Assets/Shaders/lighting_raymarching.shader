@@ -48,13 +48,11 @@ Shader "Lighting/RayMarching"
 
             // #include "lygia/lighting/atmosphere.hlsl"
 
-            #define RAYMARCH_SAMPLES 100
             #define RAYMARCH_MULTISAMPLE 4
-            #define RAYMARCH_BACKGROUND ( float3(0.7, 0.9, 1.0) + ray.y * 0.8 )
+            #define RAYMARCH_BACKGROUND ( float3(0.7, 0.9, 1.0) + rayDirection.y * 0.8 )
             // #define RAYMARCH_BACKGROUND atmosphere(normal, normalize(u_light))
             #define RAYMARCH_AMBIENT    float3(0.7, 0.9, 1.0)
             // #define RAYMARCH_AMBIENT atmosphere(normal, normalize(u_light))
-            // #define RAYMARCH_MATERIAL_MAP
             
             #include "lygia/lighting/raymarch.hlsl"
 
@@ -66,22 +64,24 @@ Shader "Lighting/RayMarching"
                 return min(1.0, uv.x + uv.y) - (uv.x * uv.y);
             }
 
-            float4 raymarchMap( in float3 pos ) {
-                float4 res = float4(1.0, 1.0, 1.0, 1.0);
+            Material raymarchMap( in float3 pos ) {
+                Material res = materialNew();
+                res.sdf = RAYMARCH_MAX_DIST;
 
                 float check = checkBoard(pos.xz, float2(1.0, 1.0));
-                res = opUnion( res, float4( 0.5 + float3(check, check, check) * 0.5, planeSDF(pos) ) );
 
-                res = opUnion( res, float4( 1.0, 1.0, 1.0, sphereSDF(    pos-float3( 0.0, 0.60, 0.0), 0.5 ) ) );
-                res = opUnion( res, float4( 0.0, 1.0, 1.0, boxSDF(       pos-float3( 2.0, 0.5, 0.0), float3(0.4, 0.4, 0.4) ) ) );
-                res = opUnion( res, float4( 0.3, 0.3, 1.0, torusSDF(     pos-float3( 0.0, 0.5, 2.0), float2(0.4,0.1) ) ) );
-                res = opUnion( res, float4( 0.3, 0.1, 0.3, capsuleSDF(   pos,float3(-2.3, 0.4,-0.2), float3(-1.6,0.75,0.2), 0.2 ) ) );
-                res = opUnion( res, float4( 0.5, 0.3, 0.4, triPrismSDF(  pos-float3(-2.0, 0.50,-2.0), float2(0.5,0.1) ) ) );
-                res = opUnion( res, float4( 0.2, 0.2, 0.8, cylinderSDF(  pos-float3( 2.0, 0.50,-2.0), float2(0.2,0.4) ) ) );
-                res = opUnion( res, float4( 0.7, 0.5, 0.2, coneSDF(      pos-float3( 0.0, 0.75,-2.0), float3(0.8,0.6,0.6) ) ) );
-                res = opUnion( res, float4( 0.4, 0.2, 0.9, hexPrismSDF(  pos-float3(-2.0, 0.60, 2.0), float2(0.5,0.1) ) ) );
-                res = opUnion( res, float4( 0.1, 0.3, 0.6, pyramidSDF(   pos-float3( 2.0, 0.10, 2.0), 1.0 ) ) );
-                    
+                res = opUnion( res, materialNew(0.5 + float3(check, check, check) * 0.5, planeSDF(pos)));
+
+                res = opUnion( res, materialNew( float3(1.0, 1.0, 1.0), sphereSDF(    pos-float3( 0.0, 0.60, 0.0), 0.5 ) ) );
+                res = opUnion( res, materialNew( float3(0.0, 1.0, 1.0), boxSDF(       pos-float3( 2.0, 0.5, 0.0), float3(0.4, 0.4, 0.4) ) ) );
+                res = opUnion( res, materialNew( float3(0.3, 0.3, 1.0), torusSDF(     pos-float3( 0.0, 0.5, 2.0), float2(0.4,0.1) ) ) );
+                res = opUnion( res, materialNew( float3(0.3, 0.1, 0.3), capsuleSDF(   pos,float3(-2.3, 0.4,-0.2), float3(-1.6,0.75,0.2), 0.2 ) ) );
+                res = opUnion( res, materialNew( float3(0.5, 0.3, 0.4), triPrismSDF(  pos-float3(-2.0, 0.50,-2.0), float2(0.5,0.1) ) ) );
+                res = opUnion( res, materialNew( float3(0.2, 0.2, 0.8), cylinderSDF(  pos-float3( 2.0, 0.50,-2.0), float2(0.2,0.4) ) ) );
+                res = opUnion( res, materialNew( float3(0.7, 0.5, 0.2), coneSDF(      pos-float3( 0.0, 0.75,-2.0), float3(0.8,0.6,0.6) ) ) );
+                res = opUnion( res, materialNew( float3(0.4, 0.2, 0.9), hexPrismSDF(  pos-float3(-2.0, 0.60, 2.0), float2(0.5,0.1) ) ) );
+                res = opUnion( res, materialNew( float3(0.1, 0.3, 0.6), pyramidSDF(   pos-float3( 2.0, 0.10, 2.0), 1.0 ) ) );;
+
                 return res;
             }
 
@@ -91,9 +91,12 @@ Shader "Lighting/RayMarching"
                 float2 st = i.clipSpacePos * pixel;
                 float2 uv = ratio(st, RESOLUTION);
 
-                float3 color = raymarch(CAMERA_POSITION, _CameraTarget, uv);
+                float eyeDepth;
+                float3 worldPos;
+                float3 worldNormal;
+                float4 color = raymarch(CAMERA_POSITION, _CameraTarget, uv, eyeDepth, worldPos, worldNormal);
 
-                return float4(color, 1);
+                return color;
             }
             ENDCG
         }
